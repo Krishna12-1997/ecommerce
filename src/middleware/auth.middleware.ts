@@ -1,10 +1,15 @@
 import { Request, Response, NextFunction } from "express";
+import jwt from "jsonwebtoken";
+import { JWT_SECRET } from "../services/auth.service";
+
+export interface UserPayload {
+  id: string;
+  email: string;
+  role: string;
+}
 
 export interface AuthenticatedRequest extends Request {
-  user?: {
-    id: string;
-    role: string;
-  };
+  user?: UserPayload;
 }
 
 export const authMiddleware = (
@@ -16,15 +21,28 @@ export const authMiddleware = (
   if (!authHeader || !authHeader.startsWith("Bearer ")) {
     return res
       .status(401)
-      .json({ error: "Unauthorized: Missing or invalid token" });
+      .json({ success: false, error: "Unauthorized: Missing or invalid Bearer token header" });
   }
 
   const token = authHeader.split(" ")[1];
-  if (token.startsWith("mock-jwt-token-")) {
-    const userId = token.replace("mock-jwt-token-", "");
-    req.user = { id: userId, role: "user" };
-    return next();
+  if (!token) {
+    return res
+      .status(401)
+      .json({ success: false, error: "Unauthorized: Token missing" });
   }
 
-  return res.status(401).json({ error: "Unauthorized: Invalid token" });
+  try {
+    const decoded = jwt.verify(token, JWT_SECRET) as UserPayload;
+    req.user = {
+      id: decoded.id,
+      email: decoded.email,
+      role: decoded.role,
+    };
+    return next();
+  } catch (err: any) {
+    if (err.name === "TokenExpiredError") {
+      return res.status(401).json({ success: false, error: "Unauthorized: Token has expired" });
+    }
+    return res.status(401).json({ success: false, error: "Unauthorized: Invalid token signature" });
+  }
 };
