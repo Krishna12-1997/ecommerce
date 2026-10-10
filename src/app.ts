@@ -4,11 +4,13 @@ import { productController } from "./controllers/product.controller";
 import { orderController } from "./controllers/order.controller";
 import { authMiddleware } from "./middleware/auth.middleware";
 import { errorHandler } from "./middleware/error.middleware";
+import { rateLimiter } from "./middleware/rate-limit.middleware";
 
 export function createApp(): Application {
   const app = express();
 
   app.use(express.json());
+  app.use(rateLimiter(60, 60 * 1000));
 
   app.get("/health", (req, res) => {
     res.status(200).json({ status: "ok", timestamp: new Date().toISOString() });

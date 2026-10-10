@@ -1,6 +1,7 @@
 import { Response, NextFunction } from "express";
 import { AuthenticatedRequest } from "../middleware/auth.middleware";
 import { orderService } from "../services/order.service";
+import { Order } from "../types";
 
 export class OrderController {
   async createOrder(
@@ -25,10 +26,16 @@ export class OrderController {
   ) {
     try {
       const userId = req.user?.id || "anonymous";
-      const orders = await orderService.getUserOrders(userId);
-      res
-        .status(200)
-        .json({ success: true, count: orders.length, data: orders });
+      const page = parseInt(req.query.page as string) || 1;
+      const limit = parseInt(req.query.limit as string) || 10;
+      const status = req.query.status as Order["status"] | undefined;
+
+      const result = await orderService.getPaginatedOrders(userId, {
+        page,
+        limit,
+        status,
+      });
+      res.status(200).json({ success: true, ...result });
     } catch (err) {
       next(err);
     }
