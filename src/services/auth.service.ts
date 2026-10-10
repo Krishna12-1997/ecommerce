@@ -1,41 +1,67 @@
+import bcrypt from "bcryptjs";
 import { db } from "../database/mock-db";
 import { User } from "../types";
 
 export class AuthService {
-  async register(email: string, password: string, name: string): Promise<User> {
-    const existing = db.users.find((u) => u.email === email);
+  private readonly SALT_ROUNDS = 10;
+
+  async register(
+    email: string,
+    password: string,
+    name: string,
+  ): Promise<Omit<User, "passwordHash">> {
+    const existing = db.users.find(
+      (u) => u.email.toLowerCase() === email.toLowerCase(),
+    );
     if (existing) {
-      throw new Error("User already exists");
+      const error: any = new Error(
+        "A user with this email address already exists",
+      );
+      error.status = 409;
+      throw error;
     }
+
+    const passwordHash = await bcrypt.hash(password, this.SALT_ROUNDS);
 
     const newUser: User = {
       id: `user-${Date.now()}`,
-      email,
-      passwordHash: password,
-      name,
+      email: email.toLowerCase().trim(),
+      passwordHash,
+      name: name.trim(),
       role: "user",
       createdAt: new Date(),
     };
 
     db.users.push(newUser);
-    return newUser;
+
+    const { passwordHash: _, ...sanitizedUser } = newUser;
+    return sanitizedUser;
   }
 
   async login(
     email: string,
     password: string,
-  ): Promise<{ token: string; user: User }> {
-    const user = db.users.find((u) => u.email === email);
+  ): Promise<{ token: string; user: Omit<User, "passwordHash"> }> {
+    const user = db.users.find(
+      (u) => u.email.toLowerCase() === email.toLowerCase().trim(),
+    );
     if (!user) {
-      throw new Error("Invalid credentials");
+      const error: any = new Error("Invalid email or password");
+      error.status = 401;
+      throw error;
     }
 
-    if (user.passwordHash !== password) {
-      throw new Error("Invalid credentials");
+    const isMatch = await bcrypt.compare(password, user.passwordHash);
+    if (!isMatch) {
+      const error: any = new Error("Invalid email or password");
+      error.status = 401;
+      throw error;
     }
 
     const token = `mock-jwt-token-${user.id}`;
-    return { token, user };
+    const { passwordHash: _, ...sanitizedUser } = user;
+
+    return { token, user: sanitizedUser };
   }
 }
 
