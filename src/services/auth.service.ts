@@ -1,6 +1,12 @@
 import bcrypt from "bcryptjs";
+import crypto from "crypto";
+import jwt from "jsonwebtoken";
 import { db } from "../database/mock-db";
 import { User } from "../types";
+
+export const JWT_SECRET =
+  process.env.JWT_SECRET;
+export const JWT_EXPIRES_IN = "24h";
 
 export class AuthService {
   private readonly SALT_ROUNDS = 10;
@@ -11,7 +17,7 @@ export class AuthService {
     name: string,
   ): Promise<Omit<User, "passwordHash">> {
     const existing = db.users.find(
-      (u) => u.email.toLowerCase() === email.toLowerCase(),
+      (u) => u.email.toLowerCase() === email.toLowerCase().trim(),
     );
     if (existing) {
       const error: any = new Error(
@@ -24,7 +30,7 @@ export class AuthService {
     const passwordHash = await bcrypt.hash(password, this.SALT_ROUNDS);
 
     const newUser: User = {
-      id: `user-${Date.now()}`,
+      id: crypto.randomUUID(),
       email: email.toLowerCase().trim(),
       passwordHash,
       name: name.trim(),
@@ -58,7 +64,16 @@ export class AuthService {
       throw error;
     }
 
-    const token = `mock-jwt-token-${user.id}`;
+    const token = jwt.sign(
+      {
+        id: user.id,
+        email: user.email,
+        role: user.role,
+      },
+      JWT_SECRET,
+      { expiresIn: JWT_EXPIRES_IN },
+    );
+
     const { passwordHash: _, ...sanitizedUser } = user;
 
     return { token, user: sanitizedUser };
