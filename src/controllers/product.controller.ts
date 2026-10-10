@@ -29,13 +29,23 @@ export class ProductController {
 
   async batchGetProducts(req: Request, res: Response, next: NextFunction) {
     try {
-      const ids = req.body.ids as string[];
+      const { ids } = req.body;
       if (!ids || !Array.isArray(ids)) {
         return res
           .status(400)
-          .json({ success: false, error: "Expected array of product ids" });
+          .json({ success: false, error: "Expected an array of product IDs" });
       }
-      const products = await productService.getProductsByIdsSequential(ids);
+
+      if (ids.length > 100) {
+        return res
+          .status(400)
+          .json({
+            success: false,
+            error: "Batch size cannot exceed 100 items",
+          });
+      }
+
+      const products = await productService.getProductsByIds(ids);
       res
         .status(200)
         .json({ success: true, count: products.length, data: products });
@@ -46,7 +56,25 @@ export class ProductController {
 
   async createProduct(req: Request, res: Response, next: NextFunction) {
     try {
-      const newProduct = await productService.addProduct(req.body);
+      const { name, description, price, category, stock, tags } = req.body;
+      if (!name || typeof price !== "number") {
+        return res
+          .status(400)
+          .json({
+            success: false,
+            error: "Missing required fields: name and price",
+          });
+      }
+
+      const newProduct = await productService.addProduct({
+        name,
+        description: description || "",
+        price,
+        category: category || "general",
+        stock: stock ?? 0,
+        tags: tags || [],
+      });
+
       res.status(201).json({ success: true, data: newProduct });
     } catch (err) {
       next(err);
